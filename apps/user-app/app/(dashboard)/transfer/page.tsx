@@ -13,6 +13,7 @@ async function getBalance() {
         }
     });
     return {
+        
         amount: balance?.amount || 0,
         locked: balance?.locked || 0
     }
