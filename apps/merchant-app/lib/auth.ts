@@ -1,7 +1,9 @@
+import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
+import type { AuthOptions } from "next-auth";
 import db from "../../../packages/db/src";
 
-export const authOptions = {
+export const authOptions: AuthOptions = {
     providers: [
         GoogleProvider({
             clientId: process.env.GOOGLE_CLIENT_ID || "",
@@ -9,40 +11,48 @@ export const authOptions = {
         })
     ],
     callbacks: {
-      async signIn({ user, account }: {
-        user: {
-          email: string;
-          name: string
-        },
-        account: {
-          provider: "google" | "github"
-        }
-      }) {
-        console.log("hi signin")
-        if (!user || !user.email) {
-          return false;
-        }
+        async signIn({ user, account }) {
+            console.log("hi signin");
+            
+            // Type guards to ensure we have the required data
+            if (!user || !user.email || !account) {
+                return false;
+            }
 
-        await db.merchant.upsert({
-          select: {
-            id: true
-          },
-          where: {
-            email: user.email
-          },
-          create: {
-            email: user.email,
-            name: user.name,
-            auth_type: account.provider === "google" ? "Google" : "Github" // Use a prisma type here
-          },
-          update: {
-            name: user.name,
-            auth_type: account.provider === "google" ? "Google" : "Github" // Use a prisma type here
-          }
-        });
+            // Additional check for supported providers
+            if (account.provider !== "google" && account.provider !== "github") {
+                return false;
+            }
 
-        return true;
-      }
+            try {
+                await db.merchant.upsert({
+                    select: {
+                        id: true
+                    },
+                    where: {
+                        email: user.email
+                    },
+                    create: {
+                        email: user.email,
+                        name: user.name || "", // Handle potential null name
+                        auth_type: account.provider === "google" ? "Google" : "Github"
+                    },
+                    update: {
+                        name: user.name || "", // Handle potential null name
+                        auth_type: account.provider === "google" ? "Google" : "Github"
+                    }
+                });
+
+                return true;
+            } catch (error) {
+                console.error("Error upserting merchant:", error);
+                return false;
+            }
+        }
     },
     secret: process.env.NEXTAUTH_SECRET || "secret"
-  }
+};
+
+const handler = NextAuth(authOptions);
+
+export { handler as GET, handler as POST };
